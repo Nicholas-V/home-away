@@ -3,6 +3,7 @@
 import {
     imageSchema,
     profileSchema,
+    propertySchema,
     validateWithZodSchema,
 } from '@/utils/schemas';
 import db from './db';
@@ -132,4 +133,63 @@ export const updateProfileImageAction = async (
     } catch (error) {
         return renderError(error);
     }
+};
+
+export const createPropertyAction = async (
+    prevState: any,
+    formData: FormData
+): Promise<{ message: string }> => {
+    const user = await getAuthUser();
+    try {
+        const rawData = Object.fromEntries(formData);
+        const file = formData.get('image') as File;
+        const validatedFields = validateWithZodSchema(propertySchema, rawData);
+        const validatedFile = validateWithZodSchema(imageSchema, {
+            image: file,
+        });
+        const fullPath = await uploadImage(validatedFile.image);
+
+        await db.property.create({
+            data: {
+                ...validatedFields,
+                image: fullPath,
+                profileId: user.id,
+            },
+        });
+    } catch (error) {
+        return renderError(error);
+    }
+    redirect('/');
+};
+
+export const fetchProperties = async ({
+    //must be defined
+    search = '',
+    // can be undefined
+    category,
+}: {
+    search?: string;
+    category: string;
+}) => {
+    const properties = await db.property.findMany({
+        where: {
+            category,
+            OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { tagline: { contains: search, mode: 'insensitive' } },
+            ],
+        },
+        select: {
+            id: true,
+            name: true,
+            tagline: true,
+            country: true,
+            price: true,
+            image: true,
+        },
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+    return properties;
 };
